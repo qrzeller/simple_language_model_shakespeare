@@ -20,12 +20,29 @@ def evaluate():
 
 
 if __name__ == "__main__":
+
+    # load config file, linux style
+    cfg = Config.load_from_file("./dataset/hyperparameters.conf")
+
     text= ""
-    with open('./dataset/input.txt', 'r') as f:
+    with open('./dataset/input.txt', 'r', encoding='utf-8') as f:
         text = f.read()
 
-    cfg = Config.load_from_file("./dataset/hyperparameters.conf")
-    char_dataset = CharDataset(cfg, text)
+
+    # create the splits, 90, 5, 5 %
+    n = len(text)
+    train_data = text[:int(n*0.9)]
+    val_data = text[int(n*0.9):int(n*0.95)]
+    test_data = text[int(n*0.95):]
+
+    # TODO : we should avoid leakage between the plays
+
+
+    chars = list(dict.fromkeys(text))
+    char_dataset_train = CharDataset(cfg, train_data, vocab=chars)
+    char_dataset_val = CharDataset(cfg, val_data, vocab=chars)   
+    char_dataset_test = CharDataset(cfg, test_data, vocab=chars)
+
 
     print(f"Dataset vocab size: {char_dataset.get_vocab_size()}, Config vocab size: {cfg.vocab_size}")
      # check if model compatible with token

@@ -9,12 +9,12 @@ class CharDataset(Dataset):
     Adapted from "https://github.com/karpathy/minGPT".
     """
 
-    def __init__(self, config: Config, data: str):
+    def __init__(self, config: Config, data: str, vocab: list[str]=None):
 
         self.N = config.N  # context length or max sequence length
 
         # trasform string to char, (all unique characters in the data)
-        self.chars = list(dict.fromkeys(data))
+        self.chars = list(dict.fromkeys(data)) if vocab is None else vocab
         # eventually sort but slower? or sort by occurence?
         # chars = sorted(chars)
 
