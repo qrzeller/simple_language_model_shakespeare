@@ -27,7 +27,7 @@ class TransformerDecoder(nn.Module):
         self.vocab_size = config.vocab_size
         self.max_seq_length = config.max_seq_length
 
-        # Should we do embedding ourselves or use nn.Embedding?
+        # TODO: Should we do embedding ourselves or use nn.Embedding?
         self.token_embedding = nn.Embedding(self.vocab_size, self.model_dim)
 
         # learned positional embeddings is also possible :
@@ -49,3 +49,4 @@ class TransformerDecoder(nn.Module):
         x = F.dropout(x, p=0.1, training=self.training)
 
         return logits
+    
