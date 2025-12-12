@@ -8,11 +8,12 @@ class CharDataset(Dataset):
     Adapted from "https://github.com/karpathy/minGPT".
     """
 
-    def __init__(self, config, data):
+    def __init__(self, config: Config, data: str):
 
+        self.N = config.N  # context length or max sequence length
 
         # trasform string to char, (all unique characters in the data)
-        self.chars = list(set(data))
+        self.chars = list(dict.fromkeys(data))
         # eventually sort but slower? or sort by occurence?
         # chars = sorted(chars)
 
@@ -24,15 +25,16 @@ class CharDataset(Dataset):
         self.data = [self.stoi[ch] for ch in data] # encode the entire dataset as a list of integers
         
 
-    def get_vocab_size(self):
+    def get_vocab_size(self) -> int:
         return self.vocab_size
 
-    def __len__(self):
-        return len(self.chars)
+    def __len__(self) -> int:
+        #return len(self.chars)
+        return
 
     def __getitem__(self, idx):
         # grab a chunk of (block_size + 1) characters from the data
         # encode every character to an integer
         # return the chunk and the shifted version as tensors
         
-        return torch.tensor(self.data[idx:idx+1]), torch.tensor(self.data[idx+1:idx+2])
+        return torch.tensor(self.data[idx:idx+self.N+1]), torch.tensor(self.data[idx+1:idx+self.N+2])
