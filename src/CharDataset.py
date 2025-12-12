@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 import torch
-from src.Config import Config
+from Config import Config
 
 class CharDataset(Dataset):
     """
@@ -22,6 +22,7 @@ class CharDataset(Dataset):
         self.itos = { i:ch for i,ch in enumerate(self.chars)} # string to integer
 
         self.vocab_size = len(self.chars)
+        assert(config.vocab_size == self.vocab_size), "Config vocab size does not match dataset vocab size!"
 
         self.data = torch.tensor([self.stoi[ch] for ch in data], dtype=torch.long) # encode the entire dataset as a list of integers
         

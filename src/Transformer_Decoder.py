@@ -8,6 +8,7 @@ Author: Quentin Zeller
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from src.Config import Config
 
 
 class TransformerDecoder(nn.Module):
@@ -15,7 +16,7 @@ class TransformerDecoder(nn.Module):
     Transformer Decoder model for sequence modeling.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super(TransformerDecoder, self).__init__() # needed to initialize nn.Module (ex: instantiate layers or move to device)
         
         # get the hyperparameters from config
@@ -25,7 +26,7 @@ class TransformerDecoder(nn.Module):
         self.vocab_size = config.vocab_size
         self.max_seq_length = config.max_seq_length
 
-        # TODO: Should we do embedding ourselves or use nn.Embedding?
+        # Should we do embedding ourselves or use nn.Embedding?
         self.token_embedding = nn.Embedding(self.vocab_size, self.model_dim)
         self.position_embedding = nn.Embedding(self.max_seq_length, self.model_dim)
 

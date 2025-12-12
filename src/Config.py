@@ -20,4 +20,7 @@ class Config:
         cfg.learning_rate = parser.getfloat('DEFAULT', 'learning_rate')
         cfg.device = parser.get('DEFAULT', 'device')
 
+        # to check if text is compatible with model
+        cfg.vocab_size = parser.getint('DEFAULT', 'vocab_size')
+
         return cfg
