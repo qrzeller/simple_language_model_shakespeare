@@ -8,7 +8,8 @@ Author: Quentin Zeller
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.Config import Config
+from Config import Config
+from positional_encoding import PositionalEncoding
 
 
 class TransformerDecoder(nn.Module):
@@ -28,9 +29,23 @@ class TransformerDecoder(nn.Module):
 
         # Should we do embedding ourselves or use nn.Embedding?
         self.token_embedding = nn.Embedding(self.vocab_size, self.model_dim)
-        self.position_embedding = nn.Embedding(self.max_seq_length, self.model_dim)
+
+        # learned positional embeddings is also possible :
+        #self.position_embedding = nn.Embedding(self.max_seq_length, self.model_dim)
+        # fourier features as in "Attention is all you need"
+        self.position_encoding = PositionalEncoding(self.model_dim)
 
 
     def forward(self, x, tgt_mask=None):
+        # noteboox pseudocode reference : WTE(idx)
+        token_embeddings = self.token_embedding(x)  # (seq_len, batch_size, model_dim)
+        token_embeddings = token_embeddings.transpose(0, 1)  # Transformer expects (seq_len, batch_size, model_dim)
+        # noteboox pseudocode reference : WPE(pos)
+        x = self.position_encoding(token_embeddings)  # Add positional encoding
+        # it should be just a view
+        x = x.transpose(0, 1)  # Back to (batch_size, seq_len, model_dim)
         
+        # From pseudocode from notebook : x = Dropout(tok_emb + pos_emb)
+        x = F.dropout(x, p=0.1, training=self.training)
+
         return logits
