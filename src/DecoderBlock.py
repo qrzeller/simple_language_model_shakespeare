@@ -8,16 +8,19 @@ class TransformerBlock(nn.Module):
     """
 
     def __init__(self, config: Config):
-        super(TransformerBlock, self).__init__()
+        super().__init__()
+        self.device = config.device
         self.model_dim = config.model_dim
         self.num_heads = config.num_heads
         # Feed-forward network dimension
-        # TODO: Do we expand and reduce like in Vits ?
-        self.ffn_dim = config.ffn_dim
+        
+        # standard is 4 times the model dimension
+        self.ffn_dim = 4 * self.model_dim
         self.dropout_rate = config.dropout_rate
 
-        
-        super().__init__()
+        # Precompute the causal mask
+        self.causal_mask = self.generate_causal_mask(config.N)
+
         # layer norm pre version.
         self.ln1 = nn.LayerNorm(self.model_dim)
         # TODO: implement multi-head self-attention
@@ -31,11 +34,19 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(self.dropout_rate)
 
-    # TODO: add attn_mask parameter (causal in this case)
     def forward(self, x, attn_mask=None):
+        """Causal self-attention block with feed-forward network."""
+        if attn_mask is None:
+            attn_mask = self.causal_mask
         # Self-attention with residual
         # query, key, value are all attending to x in self-attention
         x = x + self.dropout(self.attn(self.ln1(x), self.ln1(x), self.ln1(x), attn_mask=attn_mask)[0])
         # Feed-forward with residual
         x = x + self.mlp(self.ln2(x))
         return x
+    
+    def generate_causal_mask(self, size):
+        """Generate a causal mask for self-attention."""
+        mask = torch.triu(torch.ones(size, size), diagonal=1).bool()
+        mask = mask.to(device=self.device)
+        return mask
