@@ -18,11 +18,11 @@ class CharDataset(Dataset):
         # chars = sorted(chars)
 
         self.stoi = { ch:i for i,ch in enumerate(self.chars) } # map characters to integer indices
-        self.itos = {i:ch for i,ch in enumerate(self.chars)} # string to integer
+        self.itos = { i:ch for i,ch in enumerate(self.chars)} # string to integer
 
         self.vocab_size = len(self.chars)
 
-        self.data = [self.stoi[ch] for ch in data] # encode the entire dataset as a list of integers
+        self.data = torch.tensor([self.stoi[ch] for ch in data], dtype=torch.long) # encode the entire dataset as a list of integers
         
 
     def get_vocab_size(self) -> int:
@@ -30,11 +30,17 @@ class CharDataset(Dataset):
 
     def __len__(self) -> int:
         #return len(self.chars)
-        return
+        
+        # return the maximum nuber of views we can get from the data
+        #return len(self.data) - self.N
+        return max(0, len(self.data) - self.N) # return 0 if no view possible? or 1 ?
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         # grab a chunk of (block_size + 1) characters from the data
         # encode every character to an integer
         # return the chunk and the shifted version as tensors
+
+        seq = self.data[idx:idx+self.N+1]
         
-        return torch.tensor(self.data[idx:idx+self.N+1]), torch.tensor(self.data[idx+1:idx+self.N+2])
+        #return as requested block, block shifted by one
+        return seq[:-1], seq[1:] # faster because torch return views
