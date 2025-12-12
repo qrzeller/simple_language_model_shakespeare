@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 import torch
+from src.Config import Config
 
 class CharDataset(Dataset):
     """
