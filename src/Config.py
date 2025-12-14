@@ -28,5 +28,8 @@ class Config:
 
         # datasset path
         cfg.dataset_path = parser.get('DEFAULT', 'dataset_path')
+        
+        # optional mixed precision for CUDA
+        cfg.mixed_precision = parser.getboolean('DEFAULT', 'mixed_precision', fallback=False)
 
         return cfg

@@ -67,29 +67,43 @@ def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: i
 
 
 # inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
-def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config):
+def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config, scaler=None):
     running_loss = 0.0
 
     for i, data in enumerate(training_loader):
         # input + gt pairs
         inputs, labels = data
-        # Move data to the appropriate device
-        inputs, labels = inputs.to(config.device), labels.to(config.device) # necessary ?
+        # Move data to the appropriate device with non_blocking for async transfer
+        inputs, labels = inputs.to(config.device, non_blocking=True), labels.to(config.device, non_blocking=True)
 
         # zero the parameter gradients (except for gradacc))
         optimizer.zero_grad()
 
-        # forward + backward + optimize
-        outputs = model(inputs)
-        # outputs: (batch_size, seq_len, vocab_size), labels: (batch_size, seq_len)
-        outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
-        labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
-        loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
-        loss.backward()
+        # forward + backward + optimize with mixed precision if enabled
+        if scaler is not None:
+            # Mixed precision training reduces memory and speeds up H100
+            with torch.cuda.amp.autocast(dtype=torch.float16):
+                outputs = model(inputs)
+                # outputs: (batch_size, seq_len, vocab_size), labels: (batch_size, seq_len)
+                outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
+                labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
+                loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # Gradient clipping
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            outputs = model(inputs)
+            # outputs: (batch_size, seq_len, vocab_size), labels: (batch_size, seq_len)
+            outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
+            labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
+            loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
+            loss.backward()
+            optimizer.step()
         
         # eventually we should gives as parameters the metrics to follow (accuracy, perplexity, etc)
         # (lr schedulers) scheduler.step(val_loss)
-        optimizer.step()
 
         # print statistics
         running_loss += loss.item()
@@ -105,11 +119,27 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
 
     batch_size = config.batch_size
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    
+    # Setup mixed precision training if enabled
+    scaler = torch.cuda.amp.GradScaler() if getattr(config, 'mixed_precision', False) and config.device == 'cuda' else None
+    if scaler:
+        print("[INFO] Using mixed precision (FP16) training on CUDA")
 
     # training logic
     for epoch in range(num_epochs):
-        train_loader = tqdm.tqdm(DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
-        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
+        # Optimized DataLoader for H100: more workers, persistent workers, prefetch
+        num_workers = 8 if config.device == 'cuda' else 0
+        pin_memory = config.device == 'cuda'
+        train_loader = tqdm.tqdm(DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
+            persistent_workers=num_workers > 0,
+            prefetch_factor=2 if num_workers > 0 else 0
+        ))
+        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scaler)
         losses.append(last_loss)
     
     plot_loss(losses)
@@ -117,7 +147,17 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
     
 
 def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
-    val_loader = tqdm.tqdm(DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=2))
+    num_workers = 8 if config.device == 'cuda' else 0
+    pin_memory = config.device == 'cuda'
+    val_loader = tqdm.tqdm(DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
+        pin_memory=pin_memory,
+        num_workers=num_workers,
+        persistent_workers=num_workers > 0,
+        prefetch_factor=2 if num_workers > 0 else 0
+    ))
 
     # Set model to evaluation mode
     # Disables dropout, activations, etc.
@@ -130,8 +170,8 @@ def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
     # Ensure no gradients are computed
     with torch.no_grad():
         for inputs, labels in val_loader:
-            # Move data to the appropriate device
-            inputs, labels = inputs.to(config.device), labels.to(config.device)
+            # Move data to the appropriate device with non_blocking for async transfer
+            inputs, labels = inputs.to(config.device, non_blocking=True), labels.to(config.device, non_blocking=True)
 
             # Forward pass
             outputs = model(inputs)
