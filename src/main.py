@@ -28,7 +28,7 @@ def plot_loss(losses=[]):
     plt.show()
 
     # save figure
-    
+
     plt.savefig('./plots/training_loss.png')
 
 
@@ -99,7 +99,7 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 
 
 def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
-    num_epochs = 1
+    num_epochs = config.epochs
     model.train()
     losses = []
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     cfg = Config.load_from_file("./dataset/hyperparameters.conf")
 
     text= ""
-    with open('./dataset/input.txt', 'r', encoding='utf-8') as f:
+    with open(cfg.dataset_path, 'r', encoding='utf-8') as f:
         text = f.read()
 
 

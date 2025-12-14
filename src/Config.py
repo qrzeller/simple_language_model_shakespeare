@@ -23,4 +23,10 @@ class Config:
         # to check if text is compatible with model
         cfg.vocab_size = parser.getint('DEFAULT', 'vocab_size')
 
+        # epochs
+        cfg.epochs = parser.getint('DEFAULT', 'epochs')
+
+        # datasset path
+        cfg.dataset_path = parser.get('DEFAULT', 'dataset_path')
+
         return cfg
