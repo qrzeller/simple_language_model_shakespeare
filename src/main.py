@@ -15,6 +15,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
+# Enable cuDNN autotuner for faster operations on H100
+torch.backends.cudnn.benchmark = True
+
 def plot_loss(losses=None):
     
     # plot a pretty graph of the training loss
@@ -78,15 +81,14 @@ def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: i
 # inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
 def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config, scaler=None):
     running_loss = 0.0
+    accumulation_steps = getattr(config, 'gradient_accumulation_steps', 1)
+    accumulation_counter = 0
 
     for i, data in enumerate(training_loader):
         # input + gt pairs
         inputs, labels = data
         # Move data to the appropriate device with non_blocking for async transfer
         inputs, labels = inputs.to(config.device, non_blocking=True), labels.to(config.device, non_blocking=True)
-
-        # zero the parameter gradients (except for gradacc))
-        optimizer.zero_grad()
 
         # forward + backward + optimize with mixed precision if enabled
         if scaler is not None:
@@ -97,31 +99,43 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
                 outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
                 labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
                 loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
+                # Scale loss for gradient accumulation
+                loss = loss / accumulation_steps
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # Gradient clipping
-            scaler.step(optimizer)
-            scaler.update()
         else:
             outputs = model(inputs)
             # outputs: (batch_size, seq_len, vocab_size), labels: (batch_size, seq_len)
             outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
             labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
             loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
+            # Scale loss for gradient accumulation
+            loss = loss / accumulation_steps
             loss.backward()
-            optimizer.step()
         
-        # eventually we should gives as parameters the metrics to follow (accuracy, perplexity, etc)
-        # (lr schedulers) scheduler.step(val_loss)
+        accumulation_counter += 1
+        
+        # Perform optimizer step and gradient reset only after accumulation_steps batches
+        if accumulation_counter == accumulation_steps or i == len(training_loader) - 1:
+            if scaler is not None:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # Gradient clipping
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # Gradient clipping
+                optimizer.step()
+            
+            optimizer.zero_grad()
+            accumulation_counter = 0
 
-        # print statistics
-        running_loss += loss.item()
+        # print statistics (use unscaled loss for display)
+        running_loss += loss.item() * accumulation_steps
 
         # Update tqdm description with loss, easyer than average over minibatches
         training_loader.set_postfix(epoch=index_epoch, loss=running_loss / (i + 1))
     
     # Return average loss for the epoch
-    avg_epoch_loss = running_loss / (len(training_loader))
+    avg_epoch_loss = running_loss / len(training_loader)
     return avg_epoch_loss
 
 
@@ -140,9 +154,10 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
 
     # training logic
     for epoch in range(num_epochs):
-        # Optimized DataLoader for H100: more workers, persistent workers, prefetch
-        num_workers = 8 if config.device == 'cuda' else 0
+        # Optimized DataLoader for H100 with more RAM: higher prefetch, more workers
+        num_workers = 12 if config.device == 'cuda' else 0
         pin_memory = config.device == 'cuda'
+        prefetch_factor = 4 if num_workers > 0 else 0  # Pre-load more batches into GPU memory
         train_loader = tqdm.tqdm(DataLoader(
             train_dataset,
             batch_size=batch_size,
@@ -150,7 +165,7 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
             pin_memory=pin_memory,
             num_workers=num_workers,
             persistent_workers=num_workers > 0,
-            prefetch_factor=2 if num_workers > 0 else 0
+            prefetch_factor=prefetch_factor
         ))
         last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scaler)
         losses.append(last_loss)
@@ -158,10 +173,10 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
     plot_loss(losses)
 
     
-
 def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
-    num_workers = 8 if config.device == 'cuda' else 0
+    num_workers = 12 if config.device == 'cuda' else 0
     pin_memory = config.device == 'cuda'
+    prefetch_factor = 4 if num_workers > 0 else 0
     val_loader = tqdm.tqdm(DataLoader(
         val_dataset,
         batch_size=config.batch_size,
@@ -169,7 +184,8 @@ def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
         pin_memory=pin_memory,
         num_workers=num_workers,
         persistent_workers=num_workers > 0,
-        prefetch_factor=2 if num_workers > 0 else 0
+        prefetch_factor=prefetch_factor
+    ))  prefetch_factor=2 if num_workers > 0 else 0
     ))
 
     # Set model to evaluation mode

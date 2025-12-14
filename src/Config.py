@@ -31,5 +31,9 @@ class Config:
         
         # optional mixed precision for CUDA
         cfg.mixed_precision = parser.getboolean('DEFAULT', 'mixed_precision', fallback=False)
+        
+        # gradient accumulation and cuDNN optimizations
+        cfg.gradient_accumulation_steps = parser.getint('DEFAULT', 'gradient_accumulation_steps', fallback=1)
+        cfg.cudnn_benchmark = parser.getboolean('DEFAULT', 'cudnn_benchmark', fallback=False)
 
         return cfg
