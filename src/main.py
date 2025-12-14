@@ -16,6 +16,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import math
+import os
 
 
 # only works for auto-regressive models
@@ -117,6 +118,8 @@ def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEnt
         'train_loss': [], 'train_acc': [], 'train_ppl': [],
         'val_loss': [], 'val_acc': [], 'val_ppl': []
     }
+    
+    best_val_loss = float('inf')
 
     batch_size = config.batch_size
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
@@ -183,6 +186,22 @@ def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEnt
         if scheduler is not None:
             lr = optimizer.param_groups[0]['lr']
             print(f"Epoch {epoch}: lr={lr:.6e}")
+        
+        # Save checkpoint if best
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            if not os.path.exists('./checkpoints'):
+                os.makedirs('./checkpoints')
+            
+            checkpoint_path = './checkpoints/best_model.pt'
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': val_loss,
+                'config': config
+            }, checkpoint_path)
+            print(f"New best model saved to {checkpoint_path} with val_loss: {val_loss:.4f}")
     
     return metrics
 
