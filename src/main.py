@@ -85,6 +85,9 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
         loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
         loss.backward()
         
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
+
         # eventually we should gives as parameters the metrics to follow (accuracy, perplexity, etc)
         # (lr schedulers) scheduler.step(val_loss)
         optimizer.step()

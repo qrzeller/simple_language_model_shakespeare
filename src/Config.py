@@ -39,4 +39,7 @@ class Config:
         cfg.scheduler_patience = parser.getint('DEFAULT', 'scheduler_patience', fallback=5)
         cfg.scheduler_warmup_steps = parser.getint('DEFAULT', 'scheduler_warmup_steps', fallback=0)
 
+        # gradient clipping
+        cfg.grad_clip = parser.getfloat('DEFAULT', 'grad_clip', fallback=1.0)
+
         return cfg
