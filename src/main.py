@@ -2,6 +2,7 @@ from src.Config import Config
 from src.CharDataset import CharDataset
 from src.Transformer_Decoder import TransformerDecoder
 
+import tqdm 
 
 def plot_loss():
     pass  # Plotting logic to be implemented
@@ -11,9 +12,36 @@ def complete_text_generation():
     pass  # Text generation logic to be implemented
 
 
+# inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
+def train_epoch(index_epoch, model, training_loader, optimizer, criterion):
+    running_loss = 0.0
+    last_loss = 0.0
+
+    for i, data in enumerate(training_loader):
+        # input + gt pairs
+        inputs, labels = data
+        # zero the parameter gradients (except for gradacc))
+        optimizer.zero_grad()
+
+        # forward + backward + optimize
+        outputs = model(inputs)
+        loss = criterion(outputs, labels) # cross entropy, no softmax needed
+        loss.backward()
+        
+        # eventually we should gives as parameters the metrics to follow (accuracy, perplexity, etc)
+        # (lr schedulers) scheduler.step(val_loss)
+        optimizer.step()
+
+        # print statistics
+        running_loss += loss.item()
+        if i % 2000 == 1999:    # print every 2000 mini-batches
+            print(f'[{index_epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+            running_loss = 0.0
+
+
 
 def train():
-    pass  # Training logic to be implemented
+    pass
 
 def evaluate():
     pass  # Evaluation logic to be implemented
