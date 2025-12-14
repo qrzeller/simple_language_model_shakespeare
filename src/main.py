@@ -14,8 +14,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import math
 
-def plot_loss(losses=None):
+def plot_loss(losses):
     
     # plot a pretty graph of the training loss
     import matplotlib.pyplot as plt
@@ -43,6 +44,19 @@ def plot_loss(losses=None):
 
 def plot_metrics():
     pass  # Plotting logic to be implemented
+
+
+# only works for auto-regressive models
+# https://huggingface.co/docs/transformers/perplexity
+# Perplexity is defined as the exponentiated average negative log-likelihood of a sequence.
+# It's dependent on the token count : Cannot be compared across models
+# Equivalent to exp(cross-entropy loss)
+# 
+def calculate_perplexity(loss):
+    """Calculate perplexity from cross-entropy loss."""
+    return torch.exp(torch.tensor(loss))
+
+
 def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: int = 200, vocab: list[str] = None):
 
     # We need to do inference with the trained model
@@ -76,7 +90,7 @@ def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: i
 
 
 # inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
-def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config):
+def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config, scheduler=None):
     running_loss = 0.0
 
     for i, data in enumerate(training_loader):
@@ -100,6 +114,13 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
         # (lr schedulers) scheduler.step(val_loss)
         optimizer.step()
 
+        # If the scheduler is configured to step every batch, step it here.
+        # Note: `ReduceLROnPlateau` expects a metric and should be stepped per epoch.
+        if scheduler is not None and getattr(config, 'scheduler_step_per', 'epoch') == 'batch':
+            # avoid calling step() for ReduceLROnPlateau here
+            if not isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step()
+
         # print statistics
         running_loss += loss.item()
 
@@ -119,13 +140,57 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
     batch_size = config.batch_size
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
+    # Setup LR scheduler according to config (if any)
+    scheduler = None
+    sched_name = getattr(config, 'scheduler', 'none').lower()
+    # If user requests cosine decay with warmup, create a LambdaLR that
+    # linearly increases lr for `warmup_steps` then applies cosine decay
+    warmup_steps = getattr(config, 'scheduler_warmup_steps', 0)
+    if sched_name == 'cosine' and warmup_steps and warmup_steps > 0:
+        # compute total training steps (epochs * steps_per_epoch)
+        steps_per_epoch = math.ceil(len(train_dataset) / batch_size)
+        total_steps = max(1, config.epochs * steps_per_epoch)
+
+        def lr_lambda(current_step: int):
+            if current_step < warmup_steps:
+                return float(current_step) / float(max(1, warmup_steps))
+            # progress in [0, 1]
+            progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+        # LambdaLR should be stepped every optimizer step (per-batch)
+        config.scheduler_step_per = 'batch'
+    elif sched_name == 'step':
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=getattr(config, 'scheduler_step_size', 10), gamma=getattr(config, 'scheduler_gamma', 0.1))
+    elif sched_name == 'cosine':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=getattr(config, 'scheduler_T_max', 50), eta_min=0.0)
+    elif sched_name == 'plateau':
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=getattr(config, 'scheduler_gamma', 0.1), patience=getattr(config, 'scheduler_patience', 5))
+    else:
+        scheduler = None
+
     # training logic
     for epoch in range(num_epochs):
         train_loader = tqdm.tqdm(DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
-        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
+        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scheduler=scheduler)
         losses.append(last_loss)
+
+        # Step scheduler once per epoch if configured. For LambdaLR with warmup
+        # we configured `scheduler_step_per='batch'` and it will be stepped inside
+        # the batch loop. For ReduceLROnPlateau we pass the epoch loss.
+        if scheduler is not None and getattr(config, 'scheduler_step_per', 'epoch') == 'epoch':
+            if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(last_loss)
+            else:
+                scheduler.step()
+
+        # Print learning rate for monitoring
+        if scheduler is not None:
+            lr = optimizer.param_groups[0]['lr']
+            print(f"Epoch {epoch}: lr={lr:.6e}")
     
-    plot_loss(losses)
+    return losses
 
     
 
@@ -164,12 +229,15 @@ def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
     avg_loss = total_loss / total_samples
     accuracy = total_correct / total_samples
 
-    print(f"Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+    # Compute perplexity from the averaged cross-entropy loss.
+    # Perplexity = exp(average_negative_log_likelihood) = exp(avg_loss)
+    perplexity = calculate_perplexity(avg_loss).item()
+    
 
-    # TODO: add metric like perplexity, Rouge, BLEU, etc.
+    print(f"Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}, Perplexity: {perplexity:.4f}")
 
     # Return metrics for further use if needed
-    return avg_loss, accuracy
+    return avg_loss, accuracy, perplexity
 
     
 
@@ -205,11 +273,16 @@ if __name__ == "__main__":
     model = TransformerDecoder(cfg)
     model.to(cfg.device)
 
-    train(config=cfg, model=model, train_dataset=char_dataset_train, loss_fn=nn.CrossEntropyLoss())
+    losses = train(config=cfg, model=model, train_dataset=char_dataset_train, loss_fn=nn.CrossEntropyLoss())
     evaluate(config=cfg, model=model, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
 
-    plot_loss()  # Function to plot training loss
+    complete_text_generation(model, vocab=chars)  # Function to generate text after training
+    plot_loss(losses)  # Function to plot training loss
+    
+    # calculate perpexity since we have a fixed length model
+
+
     plot_metrics()  # Function to plot evaluation metrics
 
-    complete_text_generation(model, vocab=chars)  # Function to generate text after training
+    
 

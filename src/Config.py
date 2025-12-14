@@ -28,5 +28,15 @@ class Config:
 
         # datasset path
         cfg.dataset_path = parser.get('DEFAULT', 'dataset_path')
+        
+        # optional scheduler settings
+        # scheduler: none | step | cosine | plateau
+        cfg.scheduler = parser.get('DEFAULT', 'scheduler', fallback='none')
+        cfg.scheduler_step_per = parser.get('DEFAULT', 'scheduler_step_per', fallback='epoch')
+        cfg.scheduler_step_size = parser.getint('DEFAULT', 'scheduler_step_size', fallback=10)
+        cfg.scheduler_gamma = parser.getfloat('DEFAULT', 'scheduler_gamma', fallback=0.1)
+        cfg.scheduler_T_max = parser.getint('DEFAULT', 'scheduler_T_max', fallback=50)
+        cfg.scheduler_patience = parser.getint('DEFAULT', 'scheduler_patience', fallback=5)
+        cfg.scheduler_warmup_steps = parser.getint('DEFAULT', 'scheduler_warmup_steps', fallback=0)
 
         return cfg
