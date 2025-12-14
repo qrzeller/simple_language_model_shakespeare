@@ -46,7 +46,6 @@ class TransformerDecoder(nn.Module):
 
         # Final Layer Norm
         self.final_ln = nn.LayerNorm(self.model_dim)
-        self.final_ln = nn.LayerNorm(self.model_dim)
 
         # Projection to final classes (vocab size)
         self.output_projection = nn.Linear(self.model_dim, self.vocab_size)
@@ -58,10 +57,9 @@ class TransformerDecoder(nn.Module):
         Args:
             x (torch.LongTensor): Input token indices of shape (batch_size, seq_len).
             tgt_mask (torch.BoolTensor, optional): 2D attention mask of shape (seq_len, seq_len).
-                Mask value True means "do not attend" for that (query, key) pair.
-                If None, a **causal (future-masking) mask** is used: positions cannot attend to tokens to their right
-                (upper triangular mask above the main diagonal). The dtype should be bool and the tensor must be on
-                the same device as the inputs.
+                In this implementation, True means "can attend" and False means "masked".
+                If None, a causal mask is used: positions cannot attend to tokens to their right.
+                The dtype should be bool and the tensor must be on the same device as the inputs.
 
         Returns:
             logits (torch.FloatTensor): shape (batch_size, seq_len, vocab_size), unnormalized scores.
@@ -76,7 +74,7 @@ class TransformerDecoder(nn.Module):
         # TODO: verify shape correctness
         
         # From pseudocode from notebook : x = Dropout(tok_emb + pos_emb)
-        x = F.dropout(x, p=0.1, training=self.training)
+        x = F.dropout(x, p=self.config.dropout, training=self.training)
 
         # Pass through Transformer decoder layers
         if self.config.weight_sharing:
