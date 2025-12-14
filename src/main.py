@@ -1,6 +1,13 @@
+# set python path to src
+import sys
+import pathlib
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
 from src.Config import Config
 from src.CharDataset import CharDataset
 from src.Transformer_Decoder import TransformerDecoder
+
 
 import tqdm 
 import torch
@@ -50,7 +57,7 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 
 
 def train(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
-    num_epochs = 10
+    num_epochs = 1
     model.train()
 
     # for llms, cross entropy loss is standard (classification per token)
@@ -61,12 +68,12 @@ def train(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
 
     # training logic
     for epoch in range(num_epochs):
-        train_loader = tqdm.tqdm(DataLoader(char_dataset_train, batch_size=batch_size, shuffle=True))
+        train_loader = tqdm.tqdm(DataLoader(char_dataset_train, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
         train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
     
 
 def evaluate(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
-    val_loader = tqdm.tqdm(DataLoader(char_dataset_val, batch_size=config.batch_size, shuffle=False))
+    val_loader = tqdm.tqdm(DataLoader(char_dataset_val, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=2))
 
     # Set model to evaluation mode
     # Disables dropout, activations, etc.

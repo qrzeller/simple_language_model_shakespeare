@@ -19,7 +19,8 @@ class TransformerBlock(nn.Module):
         self.dropout_rate = config.dropout
 
         # Precompute the causal mask
-        self.causal_mask = self.generate_causal_mask(config.N)
+        # Register as buffer so it moves to device automatically with the model
+        self.register_buffer('causal_mask', self.generate_causal_mask(config.N))
 
         # layer norm pre version.
         self.ln1 = nn.LayerNorm(self.model_dim)
@@ -37,7 +38,10 @@ class TransformerBlock(nn.Module):
     def forward(self, x, attn_mask=None):
         """Causal self-attention block with feed-forward network."""
         if attn_mask is None:
-            attn_mask = self.causal_mask
+            # Slice the mask to the current sequence length (zero-copy view)
+            seq_len = x.size(1)
+            attn_mask = self.causal_mask[:seq_len, :seq_len]
+            
         # Self-attention with residual
         # query, key, value are all attending to x in self-attention
         x = x + self.dropout(self.attn(self.ln1(x), self.ln1(x), self.ln1(x), attn_mask=attn_mask)[0])
@@ -48,5 +52,5 @@ class TransformerBlock(nn.Module):
     def generate_causal_mask(self, size):
         """Generate a causal mask for self-attention."""
         mask = torch.triu(torch.ones(size, size), diagonal=1).bool()
-        mask = mask.to(device=self.device)
+        # mask = mask.to(device=self.device) # Handled by register_buffer
         return mask

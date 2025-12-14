@@ -42,7 +42,7 @@ class TransformerDecoder(nn.Module):
         # self.decoder_blocks = nn.ModuleList([TransformerBlock(self.config) for _ in range(self.num_layers)])
 
         # or a single decoder block reused multiple times (weight sharing)
-        self.decoder_block = TransformerBlock(self.config)
+        self.decoder_blocks = TransformerBlock(self.config)
 
         # Alternative is to use the first layer as independent block then weight share the rest
         # That's what we do in some cross attention models
@@ -78,8 +78,8 @@ class TransformerDecoder(nn.Module):
         x = F.dropout(x, p=0.1, training=self.training)
 
         # Pass through Transformer decoder layers
-        for _ in range(self.num_layers):
-            x = self.decoder_block(x, attn_mask=tgt_mask)
+        for layer in self.decoder_blocks:
+            x = layer(x, attn_mask=tgt_mask)
         
         # Final linear layer to project to vocabulary size
         logits = self.output_projection(x)  # (batch_size, seq_len, vocab_size)
