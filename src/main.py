@@ -185,8 +185,8 @@ def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
         num_workers=num_workers,
         persistent_workers=num_workers > 0,
         prefetch_factor=prefetch_factor
-    ))  prefetch_factor=2 if num_workers > 0 else 0
     ))
+
 
     # Set model to evaluation mode
     # Disables dropout, activations, etc.
