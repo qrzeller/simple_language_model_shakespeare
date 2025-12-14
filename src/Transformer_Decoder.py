@@ -26,7 +26,7 @@ class TransformerDecoder(nn.Module):
         self.num_heads = config.num_heads
         self.num_layers = config.num_layers
         self.vocab_size = config.vocab_size
-        self.max_seq_length = config.max_seq_length
+        self.max_seq_length = config.N
         self.config = config # to pass it all further
 
         # TODO: Should we do embedding ourselves or use nn.Embedding?

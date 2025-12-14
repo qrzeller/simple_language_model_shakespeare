@@ -32,7 +32,10 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 
         # forward + backward + optimize
         outputs = model(inputs)
-        loss = criterion(outputs, labels) # cross entropy, no softmax needed
+        # outputs: (batch_size, seq_len, vocab_size), labels: (batch_size, seq_len)
+        outputs_flat = outputs.view(-1, outputs.size(-1)) # .view(-1, C) is changing (B, S, C) to (B*S, C)
+        labels_flat = labels.view(-1) # .view(-1) is changing (B, S) to (B*S,), B*S = total number of tokens in the batch
+        loss = criterion(outputs_flat, labels_flat) # cross entropy expects (N, C) and (N,)
         loss.backward()
         
         # eventually we should gives as parameters the metrics to follow (accuracy, perplexity, etc)
@@ -62,7 +65,7 @@ def train(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
         train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
     
 
-def evaluate(config: Config, loss_fn=nn.CrossEntropyLoss()):
+def evaluate(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
     val_loader = tqdm.tqdm(DataLoader(char_dataset_val, batch_size=config.batch_size, shuffle=False))
 
     # Set model to evaluation mode
@@ -82,14 +85,16 @@ def evaluate(config: Config, loss_fn=nn.CrossEntropyLoss()):
             # Forward pass
             outputs = model(inputs)
 
-            # Compute loss
-            loss = loss_fn(outputs, labels)
-            total_loss += loss.item() * inputs.size(0)  # Accumulate total loss
+            # Compute loss (flatten sequence dimension)
+            outputs_flat = outputs.view(-1, outputs.size(-1))
+            labels_flat = labels.view(-1)
+            loss = loss_fn(outputs_flat, labels_flat)
+            total_loss += loss.item() * labels_flat.size(0)  # Accumulate total loss over tokens
 
-            # Compute accuracy
-            _, predicted = torch.max(outputs, 1)
-            total_correct += (predicted == labels).sum().item() # .item() is used to get a Python number from a tensor
-            total_samples += labels.size(0)
+            # Compute accuracy over tokens
+            _, predicted = torch.max(outputs_flat, dim=1)
+            total_correct += (predicted == labels_flat).sum().item()
+            total_samples += labels_flat.size(0)
 
     # Calculate average loss and accuracy
     avg_loss = total_loss / total_samples
@@ -130,11 +135,12 @@ if __name__ == "__main__":
     char_dataset_val = CharDataset(cfg, val_data, vocab=chars)   
     char_dataset_test = CharDataset(cfg, test_data, vocab=chars)
 
-
-    print(f"Dataset vocab size: {char_dataset.get_vocab_size()}, Config vocab size: {cfg.vocab_size}")
+    print(f"Dataset vocab size: {char_dataset_train.get_vocab_size()}, Config vocab size: {cfg.vocab_size}")
      # check if model compatible with token
+    assert(cfg.vocab_size == char_dataset_train.get_vocab_size() == len(chars)), "Config vocab size does not match dataset vocab size!"
 
     model = TransformerDecoder(cfg)
+    model.to(cfg.device)
 
     train(config=cfg, model=model, loss_fn=nn.CrossEntropyLoss())
     evaluate(config=cfg, model=model, loss_fn=nn.CrossEntropyLoss())
