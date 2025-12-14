@@ -16,34 +16,49 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import math
 
-def plot_loss(losses):
-    
-    # plot a pretty graph of the training loss
+def plot_metrics(metrics):
+    # plot a pretty graph of the training metrics
     import matplotlib.pyplot as plt
-    plt.figure()
-    plt.plot(losses, label='Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training Loss over Epochs')
-    plt.legend()
-    plt.show()
+    import os
 
     # create directory if not exists
-    import os
     if not os.path.exists('./plots'):
         os.makedirs('./plots')
     
-
-    # save figure
-
-    plt.savefig('./plots/training_loss.png')
-
-    # show the plot
+    epochs = range(1, len(metrics['train_loss']) + 1)
+    
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # Plot Loss
+    ax1.plot(epochs, metrics['train_loss'], label='Train Loss')
+    ax1.plot(epochs, metrics['val_loss'], label='Val Loss')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss')
+    ax1.set_title('Loss over Epochs')
+    ax1.legend()
+    ax1.grid(True)
+    
+    # Plot Accuracy
+    ax2.plot(epochs, metrics['train_acc'], label='Train Accuracy')
+    ax2.plot(epochs, metrics['val_acc'], label='Val Accuracy')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Accuracy')
+    ax2.set_title('Accuracy over Epochs')
+    ax2.legend()
+    ax2.grid(True)
+    
+    # Plot Perplexity
+    ax3.plot(epochs, metrics['train_ppl'], label='Train Perplexity')
+    ax3.plot(epochs, metrics['val_ppl'], label='Val Perplexity')
+    ax3.set_xlabel('Epoch')
+    ax3.set_ylabel('Perplexity')
+    ax3.set_title('Perplexity over Epochs')
+    ax3.legend()
+    ax3.grid(True)
+    
+    plt.tight_layout()
+    plt.savefig('./plots/training_metrics.png')
     plt.show()
-
-
-def plot_metrics():
-    pass  # Plotting logic to be implemented
 
 
 # only works for auto-regressive models
@@ -140,7 +155,11 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEntropyLoss()):
     num_epochs = config.epochs
     model.train()
-    losses = []
+    
+    metrics = {
+        'train_loss': [], 'train_acc': [], 'train_ppl': [],
+        'val_loss': [], 'val_acc': [], 'val_ppl': []
+    }
 
     batch_size = config.batch_size
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
@@ -179,10 +198,18 @@ def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEnt
     for epoch in range(num_epochs):
         train_loader = tqdm.tqdm(DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
         last_loss, acc, ppl = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scheduler=scheduler)
-        losses.append(last_loss)
+        
+        metrics['train_loss'].append(last_loss)
+        metrics['train_acc'].append(acc)
+        metrics['train_ppl'].append(ppl)
         
         print(f"Epoch {epoch} | Train Loss: {last_loss:.4f} Acc: {acc:.4f} Ppl: {ppl:.4f}")
-        evaluate(config, model, val_dataset, loss_fn)
+        
+        val_loss, val_acc, val_ppl = evaluate(config, model, val_dataset, loss_fn)
+        metrics['val_loss'].append(val_loss)
+        metrics['val_acc'].append(val_acc)
+        metrics['val_ppl'].append(val_ppl)
+        
         model.train()
 
         # Step scheduler once per epoch if configured. For LambdaLR with warmup
@@ -200,7 +227,7 @@ def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEnt
             lr = optimizer.param_groups[0]['lr']
             print(f"Epoch {epoch}: lr={lr:.6e}")
     
-    return losses
+    return metrics
 
     
 
@@ -283,18 +310,15 @@ if __name__ == "__main__":
     model = TransformerDecoder(cfg)
     model.to(cfg.device)
 
-    losses = train(config=cfg, model=model, train_dataset=char_dataset_train, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
+    metrics = train(config=cfg, model=model, train_dataset=char_dataset_train, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
     
     print("Test set evaluation:")
     evaluate(config=cfg, model=model, val_dataset=char_dataset_test, loss_fn=nn.CrossEntropyLoss())
 
     complete_text_generation(model, vocab=chars)  # Function to generate text after training
-    plot_loss(losses)  # Function to plot training loss
+    plot_metrics(metrics)  # Function to plot training metrics
     
     # calculate perpexity since we have a fixed length model
-
-
-    plot_metrics()  # Function to plot evaluation metrics
 
     
 
