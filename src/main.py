@@ -92,6 +92,8 @@ def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: i
 # inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
 def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config, scheduler=None):
     running_loss = 0.0
+    correct = 0
+    total = 0
 
     for i, data in enumerate(training_loader):
         # input + gt pairs
@@ -123,16 +125,19 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 
         # print statistics
         running_loss += loss.item()
+        _, predicted = torch.max(outputs_flat, 1)
+        correct += (predicted == labels_flat).sum().item()
+        total += labels_flat.size(0)
 
         # Update tqdm description with loss, easyer than average over minibatches
-        training_loader.set_postfix(epoch=index_epoch, loss=running_loss / (i + 1))
+        training_loader.set_postfix(epoch=index_epoch, loss=running_loss / (i + 1), acc=correct/total, ppl=math.exp(running_loss / (i + 1)))
     
     # Return average loss for the epoch
     avg_epoch_loss = running_loss / len(training_loader)
-    return avg_epoch_loss
+    return avg_epoch_loss, correct/total, math.exp(avg_epoch_loss)
 
 
-def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
+def train(config: Config, model, train_dataset, val_dataset, loss_fn=nn.CrossEntropyLoss()):
     num_epochs = config.epochs
     model.train()
     losses = []
@@ -173,14 +178,19 @@ def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
     # training logic
     for epoch in range(num_epochs):
         train_loader = tqdm.tqdm(DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
-        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scheduler=scheduler)
+        last_loss, acc, ppl = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config, scheduler=scheduler)
         losses.append(last_loss)
+        
+        print(f"Epoch {epoch} | Train Loss: {last_loss:.4f} Acc: {acc:.4f} Ppl: {ppl:.4f}")
+        evaluate(config, model, val_dataset, loss_fn)
+        model.train()
 
         # Step scheduler once per epoch if configured. For LambdaLR with warmup
         # we configured `scheduler_step_per='batch'` and it will be stepped inside
         # the batch loop. For ReduceLROnPlateau we pass the epoch loss.
         if scheduler is not None and getattr(config, 'scheduler_step_per', 'epoch') == 'epoch':
             if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                # we could use validation accuracy or even perplexity? Bleu?
                 scheduler.step(last_loss)
             else:
                 scheduler.step()
@@ -273,8 +283,10 @@ if __name__ == "__main__":
     model = TransformerDecoder(cfg)
     model.to(cfg.device)
 
-    losses = train(config=cfg, model=model, train_dataset=char_dataset_train, loss_fn=nn.CrossEntropyLoss())
-    evaluate(config=cfg, model=model, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
+    losses = train(config=cfg, model=model, train_dataset=char_dataset_train, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
+    
+    print("Test set evaluation:")
+    evaluate(config=cfg, model=model, val_dataset=char_dataset_test, loss_fn=nn.CrossEntropyLoss())
 
     complete_text_generation(model, vocab=chars)  # Function to generate text after training
     plot_loss(losses)  # Function to plot training loss
