@@ -37,17 +37,15 @@ class TransformerDecoder(nn.Module):
         # fourier features as in "Attention is all you need"
         self.position_encoding = PositionalEncoding(self.model_dim, self.config)
         
-        # TODO: Try this model
-        # Transformer decoder blocks, different weight matrices for each layer
-        # self.decoder_blocks = nn.ModuleList([TransformerBlock(self.config) for _ in range(self.num_layers)])
+        if config.weight_sharing:
+            # Single decoder block reused multiple times (weight sharing)
+            self.decoder_blocks = TransformerBlock(self.config)
+        else:
+            # Transformer decoder blocks, different weight matrices for each layer
+            self.decoder_blocks = nn.ModuleList([TransformerBlock(self.config) for _ in range(self.num_layers)])
 
-        # or a single decoder block reused multiple times (weight sharing)
-        self.decoder_blocks = TransformerBlock(self.config)
-
-        # Alternative is to use the first layer as independent block then weight share the rest
-        # That's what we do in some cross attention models
-        
         # Final Layer Norm
+        self.final_ln = nn.LayerNorm(self.model_dim)
         self.final_ln = nn.LayerNorm(self.model_dim)
 
         # Projection to final classes (vocab size)
@@ -81,11 +79,12 @@ class TransformerDecoder(nn.Module):
         x = F.dropout(x, p=0.1, training=self.training)
 
         # Pass through Transformer decoder layers
-        #for layer in self.decoder_blocks:
-        #    x = layer(x, attn_mask=tgt_mask)
-        
-        for _ in range(self.num_layers):
-            x = self.decoder_blocks(x, attn_mask=tgt_mask)
+        if self.config.weight_sharing:
+            for _ in range(self.num_layers):
+                x = self.decoder_blocks(x, attn_mask=tgt_mask)
+        else:
+            for layer in self.decoder_blocks:
+                x = layer(x, attn_mask=tgt_mask)
             
         # Final Layer Norm, as requested by the notebook pseudocode
         x = self.final_ln(x)

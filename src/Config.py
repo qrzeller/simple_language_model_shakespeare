@@ -42,4 +42,8 @@ class Config:
         # gradient clipping
         cfg.grad_clip = parser.getfloat('DEFAULT', 'grad_clip', fallback=1.0)
 
+        # misc
+        cfg.seed = parser.getint('DEFAULT', 'seed', fallback=1337)
+        cfg.weight_sharing = parser.getboolean('DEFAULT', 'weight_sharing', fallback=False)
+
         return cfg
