@@ -3,13 +3,15 @@
 import torch
 import torch.nn as nn
 import math
-from Config import Config
+from src.Config import Config
 
 
 class PositionalEncoding(nn.Module):
     # Max_len should be the size of the maximum context length seen
     # If bidirectional, i assume we would need N*2
-    def __init__(self, d_model, max_len=Config.N):
+    def __init__(self, d_model, config: Config):
+        max_len = config.N
+
         super(PositionalEncoding, self).__init__()
         # malloc the positional encodings once
         pe = torch.zeros(max_len, d_model)

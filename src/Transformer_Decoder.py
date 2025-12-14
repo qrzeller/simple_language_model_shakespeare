@@ -8,9 +8,9 @@ Author: Quentin Zeller
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Config import Config
-from positional_encoding import PositionalEncoding
-from DecoderBlock import TransformerBlock
+from src.Config import Config
+from src.positional_encoding import PositionalEncoding
+from src.DecoderBlock import TransformerBlock
 
 
 class TransformerDecoder(nn.Module):
@@ -35,7 +35,7 @@ class TransformerDecoder(nn.Module):
         # learned positional embeddings is also possible :
         #self.position_embedding = nn.Embedding(self.max_seq_length, self.model_dim)
         # fourier features as in "Attention is all you need"
-        self.position_encoding = PositionalEncoding(self.model_dim)
+        self.position_encoding = PositionalEncoding(self.model_dim, self.config)
         
         # TODO: Try this model
         # Transformer decoder blocks, different weight matrices for each layer

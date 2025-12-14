@@ -19,6 +19,8 @@ def test_chardataset_basic():
     cfg.N = 4
 
     text = "abcdefghijklmnopqrstuvwxyz"
+    # Update config vocab_size to match the unique chars in the test text
+    cfg.vocab_size = len(list(dict.fromkeys(text)))
     ds = CharDataset(cfg, text)
 
     # vocab size should equal number of unique chars

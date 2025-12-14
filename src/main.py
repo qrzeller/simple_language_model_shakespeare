@@ -1,6 +1,6 @@
-from Config import Config
-from CharDataset import CharDataset
-from Transformer_Decoder import TransformerDecoder
+from src.Config import Config
+from src.CharDataset import CharDataset
+from src.Transformer_Decoder import TransformerDecoder
 
 
 def plot_loss():

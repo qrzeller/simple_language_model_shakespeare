@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from Config import Config
+from src.Config import Config
 
 class TransformerBlock(nn.Module):
     """
@@ -16,7 +16,7 @@ class TransformerBlock(nn.Module):
         
         # standard is 4 times the model dimension
         self.ffn_dim = 4 * self.model_dim
-        self.dropout_rate = config.dropout_rate
+        self.dropout_rate = config.dropout
 
         # Precompute the causal mask
         self.causal_mask = self.generate_causal_mask(config.N)
