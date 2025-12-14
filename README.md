@@ -78,3 +78,11 @@ Hyperparameters are defined in `dataset/hyperparameters.conf`.
 │   └── main.py                        # Main training script
 └── tests/                             # Unit tests
 ```
+
+Example of generated text:
+O God, O God! the king is not so far off,
+That I may be so far off that word than the world.
+
+QUEEN MARGARET:
+Then be thy father, and then the world with thy brother's love,
+And then the sea of the death of the wo

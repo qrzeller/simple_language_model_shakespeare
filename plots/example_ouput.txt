@@ -1,0 +1,38 @@
+Dataset vocab size: 65, Config vocab size: 65
+100%|█████████████| 15685/15685 [14:01<00:00, 18.65it/s, acc=0.541, epoch=0, loss=1.5, ppl=4.47]
+Epoch 0 | Train Loss: 1.4982 Acc: 0.5414 Ppl: 4.4736
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 58.51it/s]
+Validation Loss: 1.4356, Accuracy: 0.5671, Perplexity: 4.2020
+Epoch 0: lr=2.727585e-04
+New best model saved to ./checkpoints/best_model.pt with val_loss: 1.4356
+100%|█████████████| 15685/15685 [14:04<00:00, 18.58it/s, acc=0.61, epoch=1, loss=1.23, ppl=3.43]
+Epoch 1 | Train Loss: 1.2318 Acc: 0.6096 Ppl: 3.4275
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 60.31it/s]
+Validation Loss: 1.4340, Accuracy: 0.5759, Perplexity: 4.1954
+Epoch 1: lr=1.980745e-04
+New best model saved to ./checkpoints/best_model.pt with val_loss: 1.4340
+100%|█████████████| 15685/15685 [14:08<00:00, 18.50it/s, acc=0.629, epoch=2, loss=1.16, ppl=3.2]
+Epoch 2 | Train Loss: 1.1633 Acc: 0.6286 Ppl: 3.2004
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 59.29it/s]
+Validation Loss: 1.4528, Accuracy: 0.5772, Perplexity: 4.2753
+Epoch 2: lr=1.047992e-04
+100%|█████████████| 15685/15685 [14:05<00:00, 18.56it/s, acc=0.64, epoch=3, loss=1.12, ppl=3.08]
+Epoch 3 | Train Loss: 1.1237 Acc: 0.6397 Ppl: 3.0763
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 60.40it/s]
+Validation Loss: 1.4656, Accuracy: 0.5770, Perplexity: 4.3299
+Epoch 3: lr=2.900389e-05
+100%|████████████| 15685/15685 [13:59<00:00, 18.68it/s, acc=0.645, epoch=4, loss=1.11, ppl=3.02]
+Epoch 4 | Train Loss: 1.1062 Acc: 0.6448 Ppl: 3.0227
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 60.31it/s]
+Validation Loss: 1.4683, Accuracy: 0.5773, Perplexity: 4.3417
+Epoch 4: lr=0.000000e+00
+Test set evaluation:
+100%|█████████████████████████████████████████████████████████| 871/871 [00:14<00:00, 61.96it/s]
+Validation Loss: 1.6481, Accuracy: 0.5483, Perplexity: 5.1970
+Generated text:
+O God, O God! the king is not so far off,
+That I may be so far off that word than the world.
+
+QUEEN MARGARET:
+Then be thy father, and then the world with thy brother's love,
+And then the sea of the death of the wo
