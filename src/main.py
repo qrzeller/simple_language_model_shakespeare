@@ -15,18 +15,60 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
-def plot_loss():
-    pass  # Plotting logic to be implemented
+def plot_loss(losses=[]):
+    
+    # plot a pretty graph of the training loss
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(losses, label='Training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training Loss over Epochs')
+    plt.legend()
+    plt.show()
+
+    # save figure
+    
+    plt.savefig('./plots/training_loss.png')
+
+
 def plot_metrics():
     pass  # Plotting logic to be implemented
-def complete_text_generation():
-    pass  # Text generation logic to be implemented
+def complete_text_generation(model, Prompt: str = "O God, O God!", max_length: int = 200, vocab: list[str] = None):
+
+    # We need to do inference with the trained model
+    model.eval()
+    generated = [ch for ch in Prompt]
+    # we could use the method in the CharDataset to encode the prompt, but it's meant for datasets
+    input_ids = torch.tensor([[vocab.index(ch) for ch in generated]], dtype=torch.long).to(next(model.parameters()).device)
+    
+    with torch.no_grad():
+        for _ in range(max_length):
+            # Only feed the model the last `block_size` tokens to avoid exceeding
+            # the positional encoding maximum length (model.config.N).
+            # We cannot actually give mroe context, the model is not robust to that.
+            context = input_ids[:, -model.config.N:]
+            outputs = model(context)
+            # get the logits for the last token in the sequence, it's not softmaxed yet
+            next_token_logits = outputs[0, -1, :]
+            # get the token with highest logit
+            # unsqueeze twice  because we need (1, 1) shape to concat
+            next_token_id = torch.argmax(next_token_logits).unsqueeze(0).unsqueeze(0)
+            # append to the input ids
+            input_ids = torch.cat([input_ids, next_token_id], dim=1)
+            # append to the generated string
+            generated.append(vocab[next_token_id.item()])
+    
+    print("Generated text:")
+    print("".join(generated))
+    
+    
+    
 
 
 # inspired from https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
 def train_epoch(index_epoch, model, training_loader, optimizer, criterion, config : Config):
     running_loss = 0.0
-    last_loss = 0.0
 
     for i, data in enumerate(training_loader):
         # input + gt pairs
@@ -53,27 +95,29 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
         running_loss += loss.item()
 
         # Update tqdm description with loss, easyer than average over minibatches
-        training_loader.set_postfix(loss=running_loss / (i + 1))
+        training_loader.set_postfix(epoch=index_epoch, loss=running_loss / (i + 1))
 
 
-def train(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
+def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
     num_epochs = 1
     model.train()
-
-    # for llms, cross entropy loss is standard (classification per token)
-    #loss = nn.CrossEntropyLoss()
+    losses = []
 
     batch_size = config.batch_size
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
     # training logic
     for epoch in range(num_epochs):
-        train_loader = tqdm.tqdm(DataLoader(char_dataset_train, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
-        train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
+        train_loader = tqdm.tqdm(DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2))
+        last_loss = train_epoch(epoch, model, train_loader, optimizer, loss_fn, config)
+        losses.append(last_loss)
+    
+    plot_loss(losses)
+
     
 
-def evaluate(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
-    val_loader = tqdm.tqdm(DataLoader(char_dataset_val, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=2))
+def evaluate(config: Config, model, val_dataset, loss_fn=nn.CrossEntropyLoss()):
+    val_loader = tqdm.tqdm(DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=2))
 
     # Set model to evaluation mode
     # Disables dropout, activations, etc.
@@ -110,7 +154,6 @@ def evaluate(config: Config, model, loss_fn=nn.CrossEntropyLoss()):
     print(f"Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
 
     # TODO: add metric like perplexity, Rouge, BLEU, etc.
-    # I would like to try BLEU score if time permits
 
     # Return metrics for further use if needed
     return avg_loss, accuracy
@@ -149,11 +192,11 @@ if __name__ == "__main__":
     model = TransformerDecoder(cfg)
     model.to(cfg.device)
 
-    train(config=cfg, model=model, loss_fn=nn.CrossEntropyLoss())
-    evaluate(config=cfg, model=model, loss_fn=nn.CrossEntropyLoss())
+    train(config=cfg, model=model, train_dataset=char_dataset_train, loss_fn=nn.CrossEntropyLoss())
+    evaluate(config=cfg, model=model, val_dataset=char_dataset_val, loss_fn=nn.CrossEntropyLoss())
 
     plot_loss()  # Function to plot training loss
     plot_metrics()  # Function to plot evaluation metrics
 
-    complete_text_generation()  # Function to generate text after training
+    complete_text_generation(model, vocab=chars)  # Function to generate text after training
 
