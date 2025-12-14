@@ -15,7 +15,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
-def plot_loss(losses=[]):
+def plot_loss(losses=None):
     
     # plot a pretty graph of the training loss
     import matplotlib.pyplot as plt
@@ -27,9 +27,18 @@ def plot_loss(losses=[]):
     plt.legend()
     plt.show()
 
+    # create directory if not exists
+    import os
+    if not os.path.exists('./plots'):
+        os.makedirs('./plots')
+    
+
     # save figure
 
     plt.savefig('./plots/training_loss.png')
+
+    # show the plot
+    plt.show()
 
 
 def plot_metrics():
@@ -96,6 +105,10 @@ def train_epoch(index_epoch, model, training_loader, optimizer, criterion, confi
 
         # Update tqdm description with loss, easyer than average over minibatches
         training_loader.set_postfix(epoch=index_epoch, loss=running_loss / (i + 1))
+    
+    # Return average loss for the epoch
+    avg_epoch_loss = running_loss / len(training_loader)
+    return avg_epoch_loss
 
 
 def train(config: Config, model, train_dataset, loss_fn=nn.CrossEntropyLoss()):
