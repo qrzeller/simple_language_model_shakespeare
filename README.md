@@ -1,7 +1,9 @@
 # Miniproject 2: Small Language Model (Shakespeare)
 
 This project can be found in the Github repository : [link](https://github.com/qrzeller/simple_language_model_shakespeare)
-Clone with : https://github.com/qrzeller/simple_language_model_shakespeare.git , main branch is for mps devices, cuda branch is not the official one.
+
+Clone with : https://github.com/qrzeller/simple_language_model_shakespeare.git
+__main__ branch is for mps devices, __cuda__ branch is not the official one.
 
 This project involves the manual implementation of a Transformer-based language model from scratch (using PyTorch for tensors and autograd, but implementing the layers manually).
 

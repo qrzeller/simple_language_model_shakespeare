@@ -46,6 +46,9 @@ class TransformerDecoder(nn.Module):
 
         # Alternative is to use the first layer as independent block then weight share the rest
         # That's what we do in some cross attention models
+        
+        # Final Layer Norm
+        self.final_ln = nn.LayerNorm(self.model_dim)
 
         # Projection to final classes (vocab size)
         self.output_projection = nn.Linear(self.model_dim, self.vocab_size)
@@ -83,6 +86,9 @@ class TransformerDecoder(nn.Module):
         
         for _ in range(self.num_layers):
             x = self.decoder_blocks(x, attn_mask=tgt_mask)
+            
+        # Final Layer Norm, as requested by the notebook pseudocode
+        x = self.final_ln(x)
             
         # Final linear layer to project to vocabulary size
         logits = self.output_projection(x)  # (batch_size, seq_len, vocab_size)
